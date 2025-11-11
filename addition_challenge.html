@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>たしざんチャレンジ（制限時間版）</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* カスタムフォントとレスポンシブな背景設定 */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Mochiy+Pop+One&display=swap');
+
+        :root {
+            --primary-color: #4f46e5; /* Indigo */
+            --correct-color: #10b981; /* Emerald */
+            --incorrect-color: #ef4444; /* Red */
+        }
+
+        body {
+            font-family: 'Inter', 'Mochiy Pop One', sans-serif;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        .game-card {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 4px solid var(--primary-color);
+            background-color: white;
+            animation: bounceIn 0.5s ease-out;
+            position: relative; /* ゲームオーバー画面の位置基準 */
+        }
+
+        /* アニメーション */
+        @keyframes bounceIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            60% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes sparkle {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2) rotate(5deg); color: gold; text-shadow: 0 0 10px yellow; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .sparkle-text {
+            animation: sparkle 0.5s ease-out;
+        }
+
+        /* ライフアイコンのスタイル */
+        .heart {
+            color: #ef4444;
+            display: inline-block;
+            margin-right: 0.25rem;
+            font-size: 1.5rem; /* デフォルトサイズ */
+            transition: transform 0.1s;
+        }
+
+        /* タイマーが点滅するアニメーション */
+        .animate-blink {
+            animation: blink 1s infinite alternate;
+        }
+        @keyframes blink {
+            from { opacity: 1; }
+            to { opacity: 0.5; }
+        }
+
+        /* 画面サイズに応じた調整 */
+        @media (min-width: 768px) {
+            .heart {
+                font-size: 2rem;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="gameApp" class="game-card w-full max-w-lg mx-auto rounded-3xl p-6 md:p-10 text-center">
+    
+    <!-- ヘッダー (スコア、タイマー、ライフ) -->
+    <header class="flex flex-col sm:flex-row justify-between items-center mb-6 border-b-2 pb-4 border-indigo-200">
+        <!-- スコア -->
+        <div class="text-xl md:text-2xl font-bold text-gray-700 flex items-center mb-2 sm:mb-0">
+            <span class="mr-2">スコア:</span>
+            <span id="scoreDisplay" class="text-indigo-600">0</span>
+        </div>
+
+        <!-- タイマー (中央に配置) -->
+        <div class="text-2xl md:text-3xl font-black flex items-center mb-2 sm:mb-0 bg-red-100 p-2 rounded-lg shadow-inner">
+            <span class="mr-2 text-gray-600">のこり時間:</span>
+            <span id="timerDisplay" class="text-red-500">60</span>
+            <span class="text-base ml-1 text-red-500">秒</span>
+        </div>
+
+        <!-- ライフ -->
+        <div class="text-xl md:text-2xl font-bold text-gray-700 flex items-center">
+            <span class="mr-2">ライフ:</span>
+            <span id="livesDisplay"></span>
+        </div>
+    </header>
+
+    <!-- 問題表示エリア -->
+    <main id="gameArea">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-indigo-700 mb-8">
+            たしざんチャレンジ！
+        </h1>
+        
+        <div id="questionContainer" class="flex justify-center items-center my-10 bg-indigo-50 p-4 rounded-xl shadow-inner">
+            <span id="numA" class="text-6xl md:text-8xl font-black text-indigo-800">?</span>
+            <span class="text-5xl md:text-7xl font-black text-indigo-500 mx-4 md:mx-8">+</span>
+            <span id="numB" class="text-6xl md:text-8xl font-black text-indigo-800">?</span>
+            <span class="text-5xl md:text-7xl font-black text-indigo-500 mx-4 md:mx-8">=</span>
+            <input type="number" id="answerInput" 
+                   class="w-24 md:w-36 text-4xl md:text-6xl text-center font-bold text-gray-800 border-4 border-indigo-400 rounded-lg p-2 focus:border-indigo-600 focus:outline-none transition"
+                   min="0" max="18" inputmode="numeric" placeholder="？" onkeypress="handleKeyPress(event)">
+        </div>
+
+        <!-- フィードバックメッセージ -->
+        <p id="feedbackMessage" class="h-8 text-xl font-bold mb-6 transition-all duration-300"></p>
+
+        <!-- ボタン -->
+        <button id="checkButton" onclick="checkAnswer()"
+                class="w-full py-4 bg-indigo-500 text-white text-2xl font-extrabold rounded-xl shadow-lg hover:bg-indigo-600 active:bg-indigo-700 transition transform hover:scale-105 active:scale-100 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+            こたえをチェック！
+        </button>
+    </main>
+
+    <!-- ゲームオーバー画面 (初期非表示) -->
+    <div id="gameOverScreen" class="hidden absolute inset-0 bg-white/90 backdrop-blur-sm flex flex-col justify-center items-center rounded-3xl p-6">
+        <h2 class="text-5xl font-extrabold text-red-500 mb-4 animate-pulse">ゲームオーバー！</h2>
+        <p class="text-3xl font-bold text-gray-700 mb-8">
+            <span class="block mb-2">さいごのスコアは...</span>
+            <span id="finalScore" class="text-indigo-600 text-6xl">0</span>点！
+        </p>
+        <button onclick="startGame()"
+                class="py-3 px-8 bg-green-500 text-white text-2xl font-bold rounded-xl shadow-xl hover:bg-green-600 active:bg-green-700 transition transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-300">
+            もういちどチャレンジ！
+        </button>
+    </div>
+
+</div>
+
+<script>
+    // ------------------------------------------
+    // グローバルなゲーム状態
+    // ------------------------------------------
+    let score = 0;
+    let lives = 3;
+    let currentA = 0;
+    let currentB = 0;
+    const initialLives = 3;
+    
+    // タイマー関連
+    const totalTime = 60; // 制限時間（秒）
+    let timeLeft = totalTime;
+    let timerInterval;
+
+    // DOM要素の取得
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const livesDisplay = document.getElementById('livesDisplay');
+    const timerDisplay = document.getElementById('timerDisplay'); // NEW: タイマー表示要素
+    const numA = document.getElementById('numA');
+    const numB = document.getElementById('numB');
+    const answerInput = document.getElementById('answerInput');
+    const feedbackMessage = document.getElementById('feedbackMessage');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const gameArea = document.getElementById('gameArea');
+    const finalScore = document.getElementById('finalScore');
+    const checkButton = document.getElementById('checkButton');
+
+    /**
+     * タイマーを1秒ごとに更新します。
+     */
+    function updateTimer() {
+        timeLeft--;
+        timerDisplay.textContent = timeLeft;
+
+        // 残り時間が10秒以下になったら赤く点滅
+        if (timeLeft <= 10) {
+            timerDisplay.classList.add('text-red-600', 'animate-blink');
+        } else {
+            timerDisplay.classList.remove('text-red-600', 'animate-blink');
+        }
+
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            gameOver(true); // タイムアウトでゲームオーバー
+        }
+    }
+
+    /**
+     * ゲームを初期化し、開始します。
+     */
+    function startGame() {
+        score = 0;
+        lives = initialLives;
+        
+        // タイマーを初期化して開始
+        clearInterval(timerInterval);
+        timeLeft = totalTime;
+        timerDisplay.textContent = timeLeft;
+        timerDisplay.classList.remove('text-red-600', 'animate-blink');
+        timerInterval = setInterval(updateTimer, 1000);
+        
+        // UIをリセット
+        gameOverScreen.classList.add('hidden');
+        gameArea.classList.remove('hidden');
+        answerInput.value = '';
+        feedbackMessage.textContent = '';
+        
+        updateUI();
+        generateQuestion();
+        answerInput.focus();
+    }
+
+    /**
+     * スコアとライフの表示を更新します。
+     */
+    function updateUI() {
+        scoreDisplay.textContent = score;
+        
+        // ライフ表示 (ハートアイコン) を更新
+        let heartsHtml = '';
+        for (let i = 0; i < initialLives; i++) {
+            heartsHtml += `<span class="heart ${i < lives ? 'opacity-100' : 'opacity-20'}" aria-hidden="true">❤️</span>`;
+        }
+        livesDisplay.innerHTML = heartsHtml;
+    }
+
+    /**
+     * 新しい足し算の問題を生成します。
+     */
+    function generateQuestion() {
+        // 1から9までの乱数を生成 (0+xは避ける)
+        currentA = Math.floor(Math.random() * 9) + 1;
+        currentB = Math.floor(Math.random() * 9) + 1;
+
+        numA.textContent = currentA;
+        numB.textContent = currentB;
+        answerInput.value = ''; // 入力欄をクリア
+        answerInput.focus();
+        
+        // アニメーションをリセット
+        numA.classList.remove('sparkle-text');
+        numB.classList.remove('sparkle-text');
+    }
+
+    /**
+     * ユーザーの答えをチェックします。
+     */
+    function checkAnswer() {
+        const userAnswer = parseInt(answerInput.value, 10);
+        const correctAnswer = currentA + currentB;
+
+        // 入力が無効な場合は何もしない
+        if (isNaN(userAnswer)) {
+            feedbackMessage.textContent = 'すうじをいれてね！';
+            feedbackMessage.className = 'h-8 text-xl font-bold mb-6 text-gray-500';
+            return;
+        }
+
+        if (userAnswer === correctAnswer) {
+            // 正解！
+            score += 10;
+            
+            // ポジティブフィードバックとアニメーション
+            feedbackMessage.textContent = 'せいかい！すごいね！';
+            feedbackMessage.className = 'h-8 text-xl font-bold mb-6 text-correct-color text-green-600 sparkle-text';
+
+            // 問題番号にもアニメーションを適用
+            numA.classList.add('sparkle-text');
+            numB.classList.add('sparkle-text');
+
+            // 0.5秒後に次の問題へ
+            setTimeout(() => {
+                generateQuestion();
+                feedbackMessage.textContent = '';
+            }, 500);
+
+        } else {
+            // 不正解...
+            lives -= 1;
+            
+            // ネガティブフィードバックとアニメーション
+            feedbackMessage.textContent = `ざんねん！ ${correctAnswer} だったよ`;
+            feedbackMessage.className = 'h-8 text-xl font-bold mb-6 text-incorrect-color text-red-500';
+
+            // 入力欄を赤くして間違いを強調
+            answerInput.classList.add('border-red-500', 'bg-red-50');
+            setTimeout(() => {
+                answerInput.classList.remove('border-red-500', 'bg-red-50');
+                // 間違えてもすぐに次の問題へ進む
+                generateQuestion();
+                feedbackMessage.textContent = '';
+            }, 700);
+            
+            // ライフが0になったかチェック
+            if (lives <= 0) {
+                // ライフ切れでゲームオーバー
+                setTimeout(() => gameOver(false), 750); 
+            }
+        }
+
+        updateUI();
+    }
+
+    /**
+     * Enterキーが押されたときの処理
+     */
+    function handleKeyPress(event) {
+        if (event.key === 'Enter') {
+            checkAnswer();
+        }
+    }
+
+    /**
+     * ゲームオーバー時の処理
+     * @param {boolean} timeOut - 時間切れによるゲームオーバーかどうか
+     */
+    function gameOver(timeOut = false) {
+        // タイマーを停止
+        clearInterval(timerInterval); 
+
+        // 最終スコアを表示
+        finalScore.textContent = score;
+
+        // ゲーム画面を隠し、ゲームオーバー画面を表示
+        gameArea.classList.add('hidden');
+        gameOverScreen.classList.remove('hidden');
+
+        // 子供たちに褒めるメッセージ
+        let cheerMessage;
+        if (timeOut) {
+            cheerMessage = "タイムアップ！よくがんばったね！";
+            document.getElementById('gameOverScreen').querySelector('h2').classList.remove('animate-pulse');
+            document.getElementById('gameOverScreen').querySelector('h2').classList.add('text-indigo-600');
+        } else if (score >= 200) {
+            cheerMessage = "すごい！きみはたしざんマスターだ！";
+            document.getElementById('gameOverScreen').querySelector('h2').classList.add('animate-pulse');
+            document.getElementById('gameOverScreen').querySelector('h2').classList.remove('text-red-500');
+            document.getElementById('gameOverScreen').querySelector('h2').classList.add('text-green-600');
+        } else {
+            cheerMessage = "よくがんばったね！つぎはもっとできるよ！";
+        }
+        document.getElementById('gameOverScreen').querySelector('h2').textContent = cheerMessage;
+        
+        // pulseアニメーションを再開させるための一時処理
+        if (!timeOut) {
+            void document.getElementById('gameOverScreen').querySelector('h2').offsetWidth; 
+            document.getElementById('gameOverScreen').querySelector('h2').classList.add('animate-pulse');
+        }
+    }
+
+    // ------------------------------------------
+    // アプリケーション開始
+    // ------------------------------------------
+    window.onload = startGame;
+
+</script>
+</body>
+</html>
